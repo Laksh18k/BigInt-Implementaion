@@ -8,10 +8,12 @@ class BigInt {
     public:
     bool sign; // 0 for positive, 1 for negative
     vector<long long> num; // base-10^8 blocks
-    BigInt() {                 
+    
+    BigInt() {                 // Default constructor initializes to zero
         sign = false;
         num.push_back(0);
     }
+    
     BigInt(string s) {                          // Constructor to convert input to BigInt format
         sign = false;
         if (s[0] == '-') {
@@ -50,6 +52,7 @@ class BigInt {
         }
         cout << endl;   
     }
+    
     void removezeroes() {                                      // Remove leading zeros and handle the case of zero
         while (num.size() > 1 && num[0] == 0) {
             num.erase(num.begin());
@@ -58,10 +61,7 @@ class BigInt {
             sign= false;
         }
     }
-
 };
-
-
 
 //////////////// Class Ends //////////////////////
 
@@ -75,7 +75,6 @@ int cmpMag(const vector<long long>& a, const vector<long long>& b) {       // Co
     }
     return 0;
 }
-
 
 vector<long long> addMag(const vector<long long>& a,                     // Add magnitudes of two numbers represented as vectors
                          const vector<long long>& b) {
@@ -104,7 +103,6 @@ vector<long long> addMag(const vector<long long>& a,                     // Add 
     reverse(res.begin(), res.end());
     return res;
 }
-
 
 //a >= b
 vector<long long> subMag(const vector<long long>& a,                    // Subtract magnitudes of two numbers represented as vectors, assuming a >= b
@@ -142,8 +140,7 @@ vector<long long> subMag(const vector<long long>& a,                    // Subtr
     return res;
 }
 
-
-vector<long long> multiplybasecase(const vector<long long>& a,            // Base case foe karatsuba algo to multiply magnitudes of two numbers represented as vectors using the standard O(n^2) method
+vector<long long> multiplybasecase(const vector<long long>& a,            // Base case for karatsuba algo to multiply magnitudes of two numbers represented as vectors using the standard O(n^2) method
                                 const vector<long long>& b) {
 
     vector<long long> res(a.size() + b.size(), 0);
@@ -151,7 +148,7 @@ vector<long long> multiplybasecase(const vector<long long>& a,            // Bas
     for (int i = a.size() - 1; i >= 0; i--) {
         for (int j = b.size() - 1; j >= 0; j--) {
 
-            __int128 cur = (__int128)a[i] * b[j];
+            long long cur = (long long )a[i] * b[j];
             cur += res[i + j + 1];
 
             res[i + j + 1] = (long long)(cur % BASE);
@@ -165,7 +162,6 @@ vector<long long> multiplybasecase(const vector<long long>& a,            // Bas
 
     return res;
 }
-
 
 vector<long long> shift(const vector<long long>& a, int k) {
     vector<long long> res = a;
@@ -220,6 +216,88 @@ vector<long long> karatsuba(const vector<long long>& x,                    // Mu
     return res;
 }
 
+// ---------------- NEW DIVISION HELPERS ----------------
+
+// Helper to multiply a BigInt vector by a single standard integer
+vector<long long> multiplyByInt(const vector<long long>& a, long long b_int) {
+    if (b_int == 0) return {0};
+    
+    vector<long long> res;
+    long long carry = 0;
+    
+    for (int i = a.size() - 1; i >= 0; i--) {
+        long long cur = a[i] * b_int + carry;
+        res.push_back(cur % BASE);
+        carry = cur / BASE;
+    }
+    if (carry > 0) res.push_back(carry);
+    
+    reverse(res.begin(), res.end());
+    return res;
+}
+
+// Division logic for magnitudes using Polynomial Estimation
+pair<vector<long long>, vector<long long>> divModMag(const vector<long long>& a, 
+                                                     const vector<long long>& b) {
+    if (b.size() == 1 && b[0] == 0) {
+        throw runtime_error("Division by zero");
+    }
+
+    if (cmpMag(a, b) < 0) {
+        return {{0}, a}; // If a < b, quotient is 0, remainder is a
+    }
+
+    vector<long long> quotient;
+    vector<long long> current_rem = {0};
+
+    for (int i = 0; i < a.size(); i++) {
+        // Bring down the next block
+        if (!(current_rem.size() == 1 && current_rem[0] == 0)) {
+            current_rem.push_back(a[i]);
+        } else {
+            current_rem[0] = a[i];
+        }
+
+        // If current remainder is still smaller than divisor, quotient digit is 0
+        if (cmpMag(current_rem, b) < 0) {
+            quotient.push_back(0);
+            continue;
+        }
+
+        // Estimate quotient digit using leading terms (2-block guess trick)
+        long long guess = 0;
+        if (current_rem.size() > b.size()) {
+            long long top_two = current_rem[0] * BASE + current_rem[1];
+            guess = top_two / b[0];
+        } else {
+            guess = current_rem[0] / b[0];
+        }
+
+        // Cap guess to BASE - 1 just in case
+        if (guess >= BASE) guess = BASE - 1;
+
+        vector<long long> prod = multiplyByInt(b, guess);
+
+        // Adjust if our guess was slightly too high
+        while (cmpMag(prod, current_rem) > 0) {
+            guess--;
+            prod = subMag(prod, b);
+        }
+
+        quotient.push_back(guess);
+        current_rem = subMag(current_rem, prod);
+    }
+
+    // Clean leading zeros from quotient
+    while (quotient.size() > 1 && quotient[0] == 0) {
+        quotient.erase(quotient.begin());
+    }
+
+    return {quotient, current_rem};
+}
+
+// ---------------- WRAPPER FUNCTIONS ----------------
+
 BigInt add(const BigInt& A, const BigInt& B) {            // wrapper function to add two BigInts, handling signs and calling the appropriate magnitude functions
     BigInt res;
 
@@ -241,7 +319,6 @@ BigInt add(const BigInt& A, const BigInt& B) {            // wrapper function to
     return res;
 }
 
-
 BigInt subtract(const BigInt& A, const BigInt& B) {                 // wrapper function to subtract two BigInts, handling signs and calling the appropriate magnitude functions
     BigInt temp = B;
     temp.sign = !temp.sign;
@@ -259,6 +336,34 @@ BigInt multiply(const BigInt& A, const BigInt& B) {            // wrapper functi
     return res;
 }
 
+BigInt divide(const BigInt& A, const BigInt& B) {             // NEW wrapper function to divide two BigInts
+    BigInt res;
+    
+    // divModMag returns a pair: {Quotient, Remainder}
+    pair<vector<long long>, vector<long long>> result = divModMag(A.num, B.num);
+    
+    res.num = result.first;
+    if (A.sign != B.sign) res.sign = true;
+    else res.sign = false;
+
+    res.removezeroes();
+    return res;
+}
+
+BigInt modulo(const BigInt& A, const BigInt& B) {             // wrapper function to find the remainder
+    BigInt res;
+    
+    // divModMag returns a pair: {Quotient, Remainder}
+    pair<vector<long long>, vector<long long>> result = divModMag(A.num, B.num);
+    
+    res.num = result.second;
+
+    res.sign = A.sign;
+
+    res.removezeroes(); 
+    return res;
+}
+
 //////////////////////////////////////  Main //////////////////////////////////////
 
 int main() {
@@ -267,18 +372,27 @@ int main() {
     cout << "Enter First number:\n";
     cin >> s1 ;
     cout << "Enter Second number:\n";
-    cin>>s2;
+    cin >> s2;
 
     BigInt A(s1), B(s2);
 
-    cout << "1.Addition 2.Subtraction 3.Multiplication\n";
+    cout << "1.Addition 2.Subtraction 3.Multiplication 4.Division 5.Modulo\n";
     int op;
     cin >> op;
+    
     cout << "Result:\n";
-    if (op == 1) add(A, B).display();
-    if (op == 2) subtract(A, B).display();
-    if (op == 3) multiply(A, B).display();
+    
+    // Wrapping the calls in a try-catch block to handle Division by Zero safely
+    try {
+        if (op == 1) add(A, B).display();
+        else if (op == 2) subtract(A, B).display();
+        else if (op == 3) multiply(A, B).display();
+        else if (op == 4) divide(A, B).display();
+        else if (op == 5) modulo(A, B).display();
+        else cout << "Invalid Option selected.\n";
+    } catch (const exception& e) {
+        cout << "Error: " << e.what() << "\n";
+    }
 
     return 0;
 }
-
