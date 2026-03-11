@@ -1,4 +1,4 @@
-// Laksh Kachure BT24CSE051 Cpl Assignment 2
+
 
 #include <bits/stdc++.h>
 using namespace std;
