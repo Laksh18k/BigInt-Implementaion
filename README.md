@@ -62,7 +62,7 @@ No external dependencies are required. You only need a C++ compiler (GCC, Clang,
 2.  **Compile the code:**
     For best performance, always compile with optimization flags (`-O3`):
     ```bash
-    g++ -O3 main.cpp -o bigint
+    g++ -O3 BigInt.cpp -o bigint
     ```
 
 ---
