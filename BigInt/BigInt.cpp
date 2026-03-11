@@ -1,5 +1,3 @@
-
-
 #include <bits/stdc++.h>
 using namespace std;
 const long long BASE = 100000000LL; // 10^8
